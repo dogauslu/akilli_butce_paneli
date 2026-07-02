@@ -1,0 +1,22 @@
+{
+  "Market": [
+    "MİGROS", "MIGROS", "A101", "BIM", "BİM", "ŞOK", "SOK", "CARREFOUR", 
+    "FILE", "MACROCENTER", "ÇAĞDAŞ", "MARKET", "BAKKAL", "MANAV", "KASAP", "HALK EKMEK"
+  ],
+  "Giyim": [
+    "ZARA", "H&M", "LCW", "WAIKIKI", "KOTON", "DEFACTO", "MAVİ", "MAVI", 
+    "BOYNER", "MANGO", "PULL", "BERSHKA", "STRADIVARIUS", "COLINS", "BEYMEN", 
+    "FLO", "DEICHMANN", "NIKE", "NİKE", "ADIDAS", "PUMA", "GİYİM", "GIYIM", "TEKSTİL", "AYAKKABI"
+  ],
+  "Eğlence": [
+    "NETFLIX", "SPOTIFY", "YOUTUBE", "EXXEN", "BLUTV", "SİNEMA", "SINEMA", "TİYATRO", "STEAM", "EPIC GAMES"
+  ],
+  "Yemek": [
+    "BURGER", "MCDONALDS", "KFC", "DOMINOS", "STARBUCKS", "YEMEKSEPETI", "GETİR", 
+    "RESTORAN", "CAFE", "KAHVE", "LOKANTA", "FIRIN", "PASTANE"
+  ],
+  "Ulaşım": [
+    "METRO", "OTOBÜS", "OTOBUS", "TAKSİ", "TAKSI", "UBER", "MARTI", 
+    "THY", "PEGASUS", "TCDD", "BİLET", "OTOGAR", "PETROL", "OPET", "SHELL"
+  ]
+}
