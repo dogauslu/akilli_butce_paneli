@@ -19,4 +19,6 @@
     "METRO", "OTOBÜS", "OTOBUS", "TAKSİ", "TAKSI", "UBER", "MARTI", 
     "THY", "PEGASUS", "TCDD", "BİLET", "OTOGAR", "PETROL", "OPET", "SHELL"
   ]
+"Maaş/Burs": ["MAAŞ", "MAAS", "BURS", "KYK", "ÖDEMESİ", "ODEMESI"],
+  "Transfer/Harçlık": ["HAVALE", "EFT", "HARÇLIK", "FAST"]
 }
