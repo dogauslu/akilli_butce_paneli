@@ -110,69 +110,60 @@ elif sayfa == "Raporlar":
                 fig_bar.update_xaxes(type='category')
                 fig_bar.update_traces(textposition='outside') 
                 st.plotly_chart(fig_bar, use_container_width=True)
-
-# --- 4. BANKA ENTEGRASYONU SAYFASI ---
+                
+# --- 4. BANKA VE GELİR ENTEGRASYONU ---
 elif sayfa == "Banka Entegrasyonu":
-    st.header("🏦 Banka Ekstresi ile Otomatik Yükleme")
-    st.write("Bankanızdan indirdiğiniz CSV veya Excel formatındaki ekstre dosyasını yükleyin.")
+    st.header("🔄 Veri Entegrasyonu")
+    islem_turu = st.radio("Hangi tür veriyi yüklüyorsunuz?", ["Kredi Kartı Harcamaları (Gider)", "Maaş/Transfer (Gelir)"])
 
-    yuklenen_dosya = st.file_uploader("Ekstre Dosyasını Seçin", type=["csv", "xlsx"])
+    yuklenen_dosya = st.file_uploader("Dosyanızı seçin", type=["csv", "xlsx"])
 
     if yuklenen_dosya is not None:
         try:
-            if yuklenen_dosya.name.endswith('.csv'):
-                ekstre = pd.read_csv(yuklenen_dosya)
-            else:
-                ekstre = pd.read_excel(yuklenen_dosya)
+            ekstre = pd.read_csv(yuklenen_dosya) if yuklenen_dosya.name.endswith('.csv') else pd.read_excel(yuklenen_dosya)
             
-            st.subheader("Yüklenen Dosya Önizlemesi")
-            st.dataframe(ekstre.head(3))
+            st.subheader("⚙️ Kolon Eşleştirme")
+            c1, c2, c3 = st.columns(3)
+            tarih_kol = c1.selectbox("Tarih Sütunu", ekstre.columns)
+            aciklama_kol = c2.selectbox("Açıklama Sütunu", ekstre.columns)
+            tutar_kol = c3.selectbox("Tutar Sütunu", ekstre.columns)
 
-            st.subheader("⚙️ Kolon Eşleştirme Ayarları")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                tarih_kolonu = st.selectbox("Tarih Sütunu", ekstre.columns)
-            with col2:
-                aciklama_kolonu = st.selectbox("Açıklama Sütunu", ekstre.columns)
-            with col3:
-                tutar_kolonu = st.selectbox("Tutar Sütunu", ekstre.columns)
-
-            if st.button("Ekstreyi İşle ve Bütçeye Ekle"):
+            if st.button("Veriyi Sisteme İşle"):
                 yeni_veriler = pd.DataFrame()
-                yeni_veriler["Tarih"] = pd.to_datetime(ekstre[tarih_kolonu]).dt.date
-                yeni_veriler["Açıklama"] = ekstre[aciklama_kolonu].astype(str)
-                yeni_veriler["Tutar"] = ekstre[tutar_kolonu].astype(float).abs()
-                yeni_veriler["Tür"] = "Gider"
+                yeni_veriler["Tarih"] = pd.to_datetime(ekstre[tarih_kol]).dt.date
+                yeni_veriler["Açıklama"] = ekstre[aciklama_kol].astype(str)
+                yeni_veriler["Tutar"] = ekstre[tutar_kol].astype(float).abs()
+                
+                # Türü seçime göre ata
+                if "Gider" in islem_turu:
+                    yeni_veriler["Tür"] = "Gider"
+                else:
+                    yeni_veriler["Tür"] = "Gelir"
 
-                # Harici JSON dosyasından dinamik olarak kategorileri okuyoruz
+                # Kategori Mantığı
                 try:
                     with open("kategoriler.json", "r", encoding="utf-8") as f:
                         kategori_haritasi = json.load(f)
-                except Exception:
-                    kategori_haritasi = {}
+                except: kategori_haritasi = {}
 
                 kategoriler = []
                 for aciklama in yeni_veriler["Açıklama"]:
                     metin = str(aciklama).upper()
                     bulundu = False
-                    
-                    for kategori, markalar in kategori_haritasi.items():
-                        if any(marka in metin for marka in markalar):
-                            kategoriler.append(kategori)
+                    for kat, markalar in kategori_haritasi.items():
+                        if any(m in metin for m in markalar):
+                            kategoriler.append(kat)
                             bulundu = True
                             break
-                    
-                    if not bulundu:
-                        kategoriler.append("Diğer")
+                    if not bulundu: kategoriler.append("Diğer")
                 
                 yeni_veriler["Kategori"] = kategoriler
 
-                mevcut_df = verileri_yukle()
-                guncel_df = pd.concat([mevcut_df, yeni_veriler], ignore_index=True)
+                # Kayıt
+                guncel_df = pd.concat([verileri_yukle(), yeni_veriler], ignore_index=True)
                 guncel_df.to_csv(VERI_DOSYASI, index=False)
-                
-                st.success(f"🎉 {len(yeni_veriler)} adet işlem başarıyla eklendi!")
-                st.balloons()
-                
+                st.success(f"Başarılı! {len(yeni_veriler)} işlem eklendi.")
         except Exception as e:
-            st.error(f"Dosya işlenirken hata oluştu: {e}")
+            st.error(f"Hata: {e}")           
+
+                
