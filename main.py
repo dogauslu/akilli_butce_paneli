@@ -11,7 +11,18 @@ import pandas as pd
 import plotly.express as px
 import os
 import json
+import random
+# Yeni eklediğimiz veritabanı ve abonelik dosyalarını import ediyoruz
+from database import init_db, register_user, verify_user
+from billing import check_and_update_subscription, process_fake_payment
 
+# Veritabanını başlat
+init_db()
+
+# SİZİN MEVCUT KODLARINIZI BU FONKSİYONUN İÇİNE ALIYORUZ
+def ana_butce_uygulamasi(user_id):
+    st.title("💰 Akıllı Bütçe Yönetim Paneli")
+    st.info("Hesabınız aktif. Verileriniz güvenli şekilde saklanmaktadır.")
 # --- AYARLAR ---
 st.set_page_config(page_title="Akıllı Bütçe Paneli (V2)", page_icon="🧠", layout="wide")
 VERI_DOSYASI = "akilli_butce_verileri.csv" # Eski veriyle karışmasın diye yeni isim verdik
@@ -164,6 +175,130 @@ elif sayfa == "Banka Entegrasyonu":
                 guncel_df.to_csv(VERI_DOSYASI, index=False)
                 st.success(f"Başarılı! {len(yeni_veriler)} işlem eklendi.")
         except Exception as e:
-            st.error(f"Hata: {e}")           
+            st.error(f"Hata: {e}")
+            
+# --- DOSYANIN EN ALTINA EKLENECEK OTURUM VE ÖDEME KONTROLÜ ---
+
+# Oturum Durumlarını Başlat
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_info" not in st.session_state:
+    st.session_state.user_info = None
+if "otp_sent" not in st.session_state:
+    st.session_state.otp_sent = False
+if "generated_otp" not in st.session_state:
+    st.session_state.generated_otp = None
+
+st.set_page_config(page_title="Akıllı Bütçe Panelim", page_icon="💰", layout="centered")
+
+# --- 1. DURUM: KULLANICI GİRİŞ YAPMAMIŞSA (GİRİŞ & KAYIT EKRANI) ---
+if not st.session_state.logged_in:
+    tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
+    
+    with tab1:
+        st.subheader("Üye Girişi")
+        login_user = st.text_input("Kullanıcı Adı", key="login_user")
+        login_pass = st.text_input("Şifre", type="password", key="login_pass")
+        
+        if st.button("Giriş Yap"):
+            user = verify_user(login_user, login_pass)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.user_info = dict(user)
+                st.success("Giriş başarılı!")
+                st.rerun()
+            else:
+                st.error("Kullanıcı adı veya şifre hatalı!")
+                
+    with tab2:
+        st.subheader("Yeni Hesap Oluştur (1 Hafta Ücretsiz)")
+        reg_username = st.text_input("Kullanıcı Adı", key="reg_user")
+        reg_name = st.text_input("Ad Soyad")
+        reg_email = st.text_input("E-posta Adresi")
+        reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx")
+        reg_pass = st.text_input("Şifre Belirleyin", type="password", key="reg_pass")
+        
+        # Ben Robot Değilim Testi
+        if "captcha_num1" not in st.session_state:
+            st.session_state.captcha_num1 = random.randint(1, 10)
+            st.session_state.captcha_num2 = random.randint(1, 10)
+            
+        captcha_answer = st.number_input(
+            f"Ben Robot Değilim: {st.session_state.captcha_num1} + {st.session_state.captcha_num2} = ?",
+            step=1, value=0
+        )
+        
+        if st.button("Doğrulama Kodu Gönder"):
+            if reg_username and reg_name and reg_email and reg_phone and reg_pass:
+                if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
+                    st.session_state.generated_otp = str(random.randint(100000, 999999))
+                    st.session_state.otp_sent = True
+                    st.info(f"📱 Telefonunuza gelen SMS Doğrulama Kodu: {st.session_state.generated_otp}")
+                else:
+                    st.error("Robot testi başarısız! Toplama işlemini kontrol edin.")
+            else:
+                st.error("Lütfen tüm alanları doldurun.")
+                
+        if st.session_state.otp_sent:
+            user_otp = st.text_input("Doğrulama Kodunu Girin")
+            if st.button("Kaydı Tamamla"):
+                if user_otp == st.session_state.generated_otp:
+                    success = register_user(reg_username, reg_name, reg_pass, reg_email, reg_phone)
+                    if success:
+                        st.success("Kaydınız başarıyla tamamlandı! Giriş Yap sekmesinden giriş yapabilirsiniz.")
+                        st.session_state.otp_sent = False
+                        st.session_state.generated_otp = None
+                    else:
+                        st.error("Bu kullanıcı adı, e-posta veya telefon zaten kayıtlı.")
+                else:
+                    st.error("Hatalı doğrulama kodu.")
+
+# --- 2. DURUM: KULLANICI GİRİŞ YAPMIŞSA (ÜYELİK VE ERİŞİM KONTROLÜ) ---
+else:
+    user = st.session_state.user_info
+    status, message = check_and_update_subscription(user["id"])
+    
+    st.sidebar.title(f"Hoş Geldiniz, {user['full_name']}")
+    if st.sidebar.button("Güvenli Çıkış"):
+        st.session_state.logged_in = False
+        st.session_state.user_info = None
+        st.rerun()
+
+    # Kısıtlama: Askıya Alınmış Hesap (Ayın 20'sinden sonra ödemeyenler)
+    if status == "suspended":
+        st.error(message)
+        st.warning("Verilerinize erişiminiz duraklatılmıştır. Lütfen aboneliğinizi başlatın.")
+        
+        st.subheader("💳 Kart Ödeme Ekranı (Aylık 20 TL)")
+        with st.form("payment_form"):
+            card_name = st.text_input("Kart Üzerindeki İsim")
+            card_no = st.text_input("Kart Numarası", max_chars=16)
+            col1, col2 = st.columns(2)
+            with col1:
+                card_exp = st.text_input("Son Kullanma (AA/YY)")
+            with col2:
+                card_cvv = st.text_input("CVV", type="password", max_chars=3)
+                
+            pay_submit = st.form_submit_button("Güvenli Ödeme Yap")
+            if pay_submit:
+                if card_name and len(card_no) == 16 and card_exp and len(card_cvv) == 3:
+                    process_fake_payment(user["id"])
+                    st.success("Ödemeniz başarıyla alındı! Verileriniz yükleniyor...")
+                    st.rerun()
+                else:
+                    st.error("Lütfen kart bilgilerini eksiksiz ve doğru girin.")
+
+    # Giriş Serbest (Aktif veya Uyarı Dönemindeki Kullanıcılar)
+    else:
+        if status == "warning":
+            st.warning(message)
+            if st.sidebar.button("💳 Şimdi Ödeme Yap (20 TL)"):
+                # Sidebar üzerinden ödeme tetiklenebilir
+                process_fake_payment(user["id"])
+                st.success("Ödemeniz alındı!")
+                st.rerun()
+        
+        # KULLANICI GİRİŞİ BAŞARILI VE ÖDEME SORUNU YOKSA KENDİ BÜTÇE KODLARIMIZI ÇALIŞTIRIYORUZ:
+        ana_butce_uygulamasi(user["id"])
 
                 
