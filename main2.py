@@ -189,6 +189,9 @@ if "reset_otp" not in st.session_state:
     st.session_state.reset_otp = None
 if "reset_email" not in st.session_state:
     st.session_state.reset_email = None
+# YENİ: Kodun doğrulanıp doğrulanmadığını tutan durum
+if "reset_otp_verified" not in st.session_state:
+    st.session_state.reset_otp_verified = False
 
 if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
@@ -221,17 +224,21 @@ if not st.session_state.logged_in:
                 st.rerun()
                 
         else:
+            # --- ŞİFREMİ UNUTTUM AŞAMALARI ---
             st.subheader("Şifre Sıfırlama")
-            st.info("Lütfen sisteme kayıtlı e-posta adresinizi girin.")
-            reset_email = st.text_input("E-posta Adresi", key="fp_email")
             
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                if st.button("⬅️ Geri Dön"):
-                    st.session_state.forgot_password_mode = False
-                    st.session_state.reset_otp_sent = False
-                    st.rerun()
-            with col2:
+            if st.button("⬅️ Geri Dön"):
+                # Geri dönüldüğünde tüm sıfırlama aşamalarını temizle
+                st.session_state.forgot_password_mode = False
+                st.session_state.reset_otp_sent = False
+                st.session_state.reset_otp_verified = False
+                st.rerun()
+            
+            # AŞAMA 1 ve 2: Kod gönderimi ve Doğrulama (Henüz doğrulanmadıysa)
+            if not st.session_state.reset_otp_verified:
+                st.info("Lütfen sisteme kayıtlı e-posta adresinizi girin.")
+                reset_email = st.text_input("E-posta Adresi", key="fp_email")
+                
                 if st.button("Sıfırlama Kodu Gönder"):
                     if check_email_exists(reset_email):
                         st.session_state.reset_otp = str(random.randint(100000, 999999))
@@ -253,31 +260,43 @@ if not st.session_state.logged_in:
                             server.quit()
                             
                             st.session_state.reset_otp_sent = True
-                            st.success("📧 Sıfırlama kodu e-postanıza gönderildi!")
+                            st.success("📧 Sıfırlama kodu gönderildi!")
                         except Exception as e:
                             st.error(f"E-posta gönderilemedi. Hata: {e}")
                     else:
                         st.error("Bu e-posta adresiyle kayıtlı bir hesap bulunamadı!")
+                
+                # AŞAMA 2: Kod gönderildiyse doğrulama kutusunu göster
+                if st.session_state.reset_otp_sent:
+                    st.markdown("---")
+                    entered_otp = st.text_input("E-postanıza Gelen 6 Haneli Kodu Girin")
+                    
+                    if st.button("Kodu Doğrula"):
+                        if entered_otp == st.session_state.reset_otp:
+                            st.session_state.reset_otp_verified = True
+                            st.rerun()
+                        else:
+                            st.error("❌ Hatalı doğrulama kodu girdiniz!")
             
-            if st.session_state.reset_otp_sent:
-                st.markdown("---")
-                entered_otp = st.text_input("E-postanıza Gelen 6 Haneli Kod")
+            # AŞAMA 3: Kod DOĞRULANDIYSA sadece şifre yenileme ekranını göster
+            else:
+                st.success("✅ Kod doğrulandı! Şimdi yeni şifrenizi oluşturabilirsiniz.")
                 
                 show_pass_reset = st.checkbox("Yeni Şifreyi Göster", key="show_reset")
                 new_pass = st.text_input("Yeni Şifre", type="default" if show_pass_reset else "password")
                 new_pass_confirm = st.text_input("Yeni Şifre Tekrar", type="default" if show_pass_reset else "password")
                 
                 if st.button("Şifreyi Güncelle"):
-                    if entered_otp != st.session_state.reset_otp:
-                        st.error("Hatalı doğrulama kodu girdiniz!")
-                    elif new_pass != new_pass_confirm:
-                        st.error("Şifreler birbiriyle eşleşmiyor!")
+                    if new_pass != new_pass_confirm:
+                        st.error("❌ Şifreler birbiriyle eşleşmiyor!")
                     elif len(new_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_pass):
                         st.error("🔒 Şifreniz en az 8 karakter olmalı ve en az bir özel karakter içermelidir.")
                     else:
                         update_password(st.session_state.reset_email, new_pass)
-                        st.success("🎉 Şifreniz başarıyla güncellendi! Geri Dön butonuna basarak giriş yapabilirsiniz.")
+                        st.success("🎉 Şifreniz başarıyla güncellendi! 'Geri Dön' butonuna basarak giriş yapabilirsiniz.")
+                        # İşlem bitince durumları sıfırla ki tekrar giriş yapılabilsin
                         st.session_state.reset_otp_sent = False
+                        st.session_state.reset_otp_verified = False
                         st.session_state.reset_otp = None
                 
     with tab2:
