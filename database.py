@@ -1,7 +1,6 @@
-# database.py
 import sqlite3
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 DB_FILE = "akilli_butce.db"
 
@@ -14,10 +13,10 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Kullanıcılar Tablosu (Üyelik ve Ödeme Kontrol Alanları Dahil)
+    # Kullanıcılar Tablosu
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOUTINCREMENT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         full_name TEXT NOT NULL,
         password TEXT NOT NULL,
@@ -26,21 +25,7 @@ def init_db():
         trial_start_date TEXT NOT NULL,
         is_premium INTEGER DEFAULT 0,
         last_payment_date TEXT,
-        status TEXT DEFAULT 'active' -- active, warning, suspended
-    )
-    """)
-    
-    # Kişiye Özel Bütçe Verileri Tablosu
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS budget_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        date TEXT NOT NULL,
-        category TEXT NOT NULL,
-        amount REAL NOT NULL,
-        description TEXT,
-        type TEXT NOT NULL, -- 'Gelir' veya 'Gider'
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        status TEXT DEFAULT 'active'
     )
     """)
     conn.commit()
