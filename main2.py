@@ -380,7 +380,8 @@ if not st.session_state.logged_in:
                     else:
                         st.error("❌ Kayıt Başarısız: Bu kullanıcı adı, e-posta adresi veya telefon numarası sistemde zaten kayıtlı!")
                 else:
-                    st.error("Hatalı doğrulama kodu.")else:
+                    st.error("Hatalı doğrulama kodu.")
+else:
     user = st.session_state.user_info
     status, message = check_and_update_subscription(user["id"])
     
