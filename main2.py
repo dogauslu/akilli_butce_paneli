@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Akıllı Bütçe Paneli - Üyelik, Şifre Kuralları, E-posta Doğrulama & Ödeme Entegre Edilmiş Sürüm
+Akıllı Bütçe Paneli - Tam Sürüm (KVKK Silme Kuralı Ekli)
 """
 
 import streamlit as st
@@ -14,25 +14,23 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 
-# Yeni eklediğimiz veritabanı ve abonelik dosyalarını import ediyoruz
-from database import init_db, register_user, verify_user
+# Temizlik robotunu da import ettik
+from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts
 from billing import check_and_update_subscription, process_fake_payment
 
-# --- GÜVENLİK AYARI ---
 st.set_page_config(page_title="Akıllı Bütçe Paneli (V2)", page_icon="🧠", layout="wide")
 
-# Veritabanını başlat
+# Veritabanını başlat ve 1 yılı dolan ödemesiz hesapları arka planda temizle
 init_db()
+cleanup_inactive_accounts()
 
-# --- ANA BÜTÇE PANELİ (KULLANICI BAŞARIYLA GİRDİĞİNDE ÇALIŞACAK) ---
+# --- ANA BÜTÇE PANELİ ---
 def ana_butce_uygulamasi(user_id):
     st.title("💰 Akıllı Bütçe Yönetim Paneli")
     st.info("Hesabınız aktif. Verileriniz kişiye özel olarak güvenli şekilde saklanmaktadır.")
 
-    # Verileri kullanıcıya özel hale getirmek için dosya ismini kullanıcı ID'si ile özelleştiriyoruz
     VERI_DOSYASI = f"akilli_butce_verileri_{user_id}.csv"
 
-    # --- VERİ YÜKLEME FONKSİYONU ---
     def verileri_yukle():
         if os.path.exists(VERI_DOSYASI):
             df = pd.read_csv(VERI_DOSYASI)
@@ -45,11 +43,9 @@ def ana_butce_uygulamasi(user_id):
 
     giderler_df = verileri_yukle()
 
-    # --- YAN MENÜ (ROUTING) ---
     st.sidebar.title("Akıllı Menü V2")
     sayfa = st.sidebar.selectbox("Sayfa Seçin", ["Genel Bakış", "İşlem Ekle", "Raporlar", "Banka Entegrasyonu"])
 
-    # --- 1. GENEL BAKIŞ SAYFASI ---
     if sayfa == "Genel Bakış":
         st.header("📊 Genel Bakış")
         
@@ -65,7 +61,6 @@ def ana_butce_uygulamasi(user_id):
         st.subheader("Son İşlemler")
         st.dataframe(giderler_df.tail(5))
 
-    # --- 2. İŞLEM EKLE SAYFASI ---
     elif sayfa == "İşlem Ekle":
         st.header("➕ Yeni İşlem Ekle")
         
@@ -95,7 +90,6 @@ def ana_butce_uygulamasi(user_id):
                 guncel_df.to_csv(VERI_DOSYASI, index=False)
                 st.success("İşlem başarıyla eklendi!")
 
-    # --- 3. RAPORLAR SAYFASI ---
     elif sayfa == "Raporlar":
         st.header("📈 Raporlar ve Analizler")
         
@@ -122,13 +116,11 @@ def ana_butce_uygulamasi(user_id):
                     fig_bar = px.bar(gunluk_toplam, x='Tarih', y='Tutar', 
                                      color='Tutar', color_continuous_scale='Reds',
                                      text_auto='.0f')
-                    
                     fig_bar.update_layout(xaxis_tickangle=-45, margin=dict(b=80), xaxis_title="", yaxis_title="")
                     fig_bar.update_xaxes(type='category')
                     fig_bar.update_traces(textposition='outside') 
                     st.plotly_chart(fig_bar, use_container_width=True)
                     
-    # --- 4. BANKA VE GELİR ENTEGRASYONU ---
     elif sayfa == "Banka Entegrasyonu":
         st.header("🔄 Veri Entegrasyonu")
         islem_turu = st.radio("Hangi tür veriyi yüklüyorsunuz?", ["Kredi Kartı Harcamaları (Gider)", "Maaş/Transfer (Gelir)"])
@@ -151,10 +143,7 @@ def ana_butce_uygulamasi(user_id):
                     yeni_veriler["Açıklama"] = ekstre[aciklama_kol].astype(str)
                     yeni_veriler["Tutar"] = ekstre[tutar_kol].astype(float).abs()
                     
-                    if "Gider" in islem_turu:
-                        yeni_veriler["Tür"] = "Gider"
-                    else:
-                        yeni_veriler["Tür"] = "Gelir"
+                    yeni_veriler["Tür"] = "Gider" if "Gider" in islem_turu else "Gelir"
 
                     try:
                         with open("kategoriler.json", "r", encoding="utf-8") as f:
@@ -182,9 +171,7 @@ def ana_butce_uygulamasi(user_id):
             except Exception as e:
                 st.error(f"Hata: {e}")
 
-
-# --- OTURUM VE ÖDEME KONTROLÜ ---
-
+# --- OTURUM VE YÖNETİM ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_info" not in st.session_state:
@@ -194,31 +181,104 @@ if "otp_sent" not in st.session_state:
 if "generated_otp" not in st.session_state:
     st.session_state.generated_otp = None
 
-# --- 1. DURUM: KULLANICI GİRİŞ YAPMAMIŞSA (GİRİŞ & KAYIT EKRANI) ---
+if "forgot_password_mode" not in st.session_state:
+    st.session_state.forgot_password_mode = False
+if "reset_otp_sent" not in st.session_state:
+    st.session_state.reset_otp_sent = False
+if "reset_otp" not in st.session_state:
+    st.session_state.reset_otp = None
+if "reset_email" not in st.session_state:
+    st.session_state.reset_email = None
+
 if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
     
     with tab1:
-        st.subheader("Üye Girişi")
-        login_user = st.text_input("Kullanıcı Adı", key="login_user")
-        
-        # Parola Göster/Gizle
-        show_pass_login = st.checkbox("Parolayı Göster", key="show_login")
-        login_pass = st.text_input(
-            "Şifre", 
-            type="default" if show_pass_login else "password", 
-            key="login_pass"
-        )
-        
-        if st.button("Giriş Yap"):
-            user = verify_user(login_user, login_pass)
-            if user:
-                st.session_state.logged_in = True
-                st.session_state.user_info = dict(user)
-                st.success("Giriş başarılı!")
+        if not st.session_state.forgot_password_mode:
+            st.subheader("Üye Girişi")
+            login_user = st.text_input("Kullanıcı Adı", key="login_user")
+            
+            show_pass_login = st.checkbox("Parolayı Göster", key="show_login")
+            login_pass = st.text_input(
+                "Şifre", 
+                type="default" if show_pass_login else "password", 
+                key="login_pass"
+            )
+            
+            if st.button("Giriş Yap"):
+                user = verify_user(login_user, login_pass)
+                if user:
+                    st.session_state.logged_in = True
+                    st.session_state.user_info = dict(user)
+                    st.success("Giriş başarılı!")
+                    st.rerun()
+                else:
+                    st.error("Kullanıcı adı veya şifre hatalı!")
+            
+            st.markdown("---")
+            if st.button("🔑 Şifremi Unuttum"):
+                st.session_state.forgot_password_mode = True
                 st.rerun()
-            else:
-                st.error("Kullanıcı adı veya şifre hatalı!")
+                
+        else:
+            st.subheader("Şifre Sıfırlama")
+            st.info("Lütfen sisteme kayıtlı e-posta adresinizi girin.")
+            reset_email = st.text_input("E-posta Adresi", key="fp_email")
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                if st.button("⬅️ Geri Dön"):
+                    st.session_state.forgot_password_mode = False
+                    st.session_state.reset_otp_sent = False
+                    st.rerun()
+            with col2:
+                if st.button("Sıfırlama Kodu Gönder"):
+                    if check_email_exists(reset_email):
+                        st.session_state.reset_otp = str(random.randint(100000, 999999))
+                        st.session_state.reset_email = reset_email
+                        
+                        try:
+                            gonderici_mail = st.secrets["email"]["gonderici"]
+                            gonderici_sifre = st.secrets["email"]["sifre"]
+                            
+                            msg = MIMEText(f"Akıllı Bütçe Paneli şifre sıfırlama kodunuz: {st.session_state.reset_otp}")
+                            msg['Subject'] = 'Şifre Sıfırlama Talebi'
+                            msg['From'] = gonderici_mail
+                            msg['To'] = reset_email
+
+                            server = smtplib.SMTP('smtp.gmail.com', 587)
+                            server.starttls()
+                            server.login(gonderici_mail, gonderici_sifre)
+                            server.send_message(msg)
+                            server.quit()
+                            
+                            st.session_state.reset_otp_sent = True
+                            st.success("📧 Sıfırlama kodu e-postanıza gönderildi!")
+                        except Exception as e:
+                            st.error(f"E-posta gönderilemedi. Hata: {e}")
+                    else:
+                        st.error("Bu e-posta adresiyle kayıtlı bir hesap bulunamadı!")
+            
+            if st.session_state.reset_otp_sent:
+                st.markdown("---")
+                entered_otp = st.text_input("E-postanıza Gelen 6 Haneli Kod")
+                
+                show_pass_reset = st.checkbox("Yeni Şifreyi Göster", key="show_reset")
+                new_pass = st.text_input("Yeni Şifre", type="default" if show_pass_reset else "password")
+                new_pass_confirm = st.text_input("Yeni Şifre Tekrar", type="default" if show_pass_reset else "password")
+                
+                if st.button("Şifreyi Güncelle"):
+                    if entered_otp != st.session_state.reset_otp:
+                        st.error("Hatalı doğrulama kodu girdiniz!")
+                    elif new_pass != new_pass_confirm:
+                        st.error("Şifreler birbiriyle eşleşmiyor!")
+                    elif len(new_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_pass):
+                        st.error("🔒 Şifreniz en az 8 karakter olmalı ve en az bir özel karakter içermelidir.")
+                    else:
+                        update_password(st.session_state.reset_email, new_pass)
+                        st.success("🎉 Şifreniz başarıyla güncellendi! Geri Dön butonuna basarak giriş yapabilirsiniz.")
+                        st.session_state.reset_otp_sent = False
+                        st.session_state.reset_otp = None
                 
     with tab2:
         st.subheader("Yeni Hesap Oluştur (7 Gün Ücretsiz)")
@@ -227,7 +287,6 @@ if not st.session_state.logged_in:
         reg_email = st.text_input("E-posta Adresi")
         reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx")
         
-        # Kayıt Ol şifre gösterimi ve şifre tekrarı
         show_pass_reg = st.checkbox("Şifreyi Göster", key="show_reg")
         reg_pass = st.text_input(
             "Şifre Belirleyin", 
@@ -240,7 +299,6 @@ if not st.session_state.logged_in:
             key="reg_pass_confirm"
         )
         
-        # Ben Robot Değilim Testi
         if "captcha_num1" not in st.session_state:
             st.session_state.captcha_num1 = random.randint(1, 10)
             st.session_state.captcha_num2 = random.randint(1, 10)
@@ -251,7 +309,6 @@ if not st.session_state.logged_in:
         )
         
         if st.button("Doğrulama Kodu Gönder"):
-            # ŞİFRE KONTROLLERİ
             if reg_pass != reg_pass_confirm:
                 st.error("🔒 Şifreler birbiriyle eşleşmiyor!")
             elif len(reg_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
@@ -276,11 +333,11 @@ if not st.session_state.logged_in:
                         server.quit()
                         
                         st.session_state.otp_sent = True
-                        st.success(f"📧 Doğrulama kodu {reg_email} adresine gönderildi! (Gelen Kutunuzu ve Spam klasörünü kontrol edin.)")
+                        st.success(f"📧 Doğrulama kodu {reg_email} adresine gönderildi!")
                     except Exception as e:
-                        st.error(f"E-posta gönderilemedi. Lütfen Streamlit Secrets ayarlarınızı kontrol edin. Hata detayları: {e}")
+                        st.error(f"E-posta gönderilemedi. Hata detayları: {e}")
                 else:
-                    st.error("Robot testi başarısız! Toplama işlemini kontrol edin.")
+                    st.error("Robot testi başarısız!")
             else:
                 st.error("Lütfen tüm alanları doldurun.")
                 
@@ -290,15 +347,14 @@ if not st.session_state.logged_in:
                 if user_otp == st.session_state.generated_otp:
                     success = register_user(reg_username, reg_name, reg_pass, reg_email, reg_phone)
                     if success:
-                        st.success("Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı. Giriş Yap sekmesinden giriş yapabilirsiniz.")
+                        st.success("Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı.")
                         st.session_state.otp_sent = False
                         st.session_state.generated_otp = None
                     else:
-                        st.error("Bu kullanıcı adı veya e-posta zaten alınmış.")
+                        st.error("❌ Kayıt Başarısız: Bu kullanıcı adı, e-posta adresi veya telefon numarası sistemde zaten kayıtlı!")
                 else:
                     st.error("Hatalı doğrulama kodu.")
 
-# --- 2. DURUM: KULLANICI GİRİŞ YAPMIŞSA (ÜYELİK VE ERİŞİM KONTROLÜ) ---
 else:
     user = st.session_state.user_info
     status, message = check_and_update_subscription(user["id"])
@@ -309,7 +365,6 @@ else:
         st.session_state.user_info = None
         st.rerun()
 
-    # Kısıtlama: Deneme süresi bitmiş veya ödeme askıya alınmış hesap
     if status == "suspended":
         st.error(message)
         st.warning("Verilerinize erişiminiz duraklatılmıştır. Lütfen aboneliğinizi başlatın.")
@@ -328,12 +383,11 @@ else:
             if pay_submit:
                 if card_name and len(card_no) == 16 and card_exp and len(card_cvv) == 3:
                     process_fake_payment(user["id"])
-                    st.success("Ödemeniz başarıyla alındı! Aboneliğiniz aktif edildi, verileriniz yükleniyor...")
+                    st.success("Ödemeniz başarıyla alındı! Aboneliğiniz aktif edildi.")
                     st.rerun()
                 else:
                     st.error("Lütfen kart bilgilerini eksiksiz ve doğru girin.")
 
-    # Giriş Serbest (Aktif Deneme, Aktif Premium veya Uyarı Dönemindeki Kullanıcılar)
     else:
         if status == "warning":
             st.warning(message)
@@ -344,5 +398,4 @@ else:
         elif status == "active":
             st.sidebar.info(message)
         
-        # KULLANICI GİRİŞİ BAŞARILI VE ÖDEME SORUNU YOKSA KENDİ BÜTÇE KODLARIMIZI ÇALIŞTIRIYORUZ:
         ana_butce_uygulamasi(user["id"])
