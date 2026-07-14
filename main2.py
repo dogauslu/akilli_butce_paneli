@@ -29,7 +29,8 @@ import os
 import json
 import random
 import re  # Şifre özel karakter kontrolü için eklendi
-
+import smtplib
+from email.mime.text import MIMEText
 # Yeni eklediğimiz veritabanı ve abonelik dosyalarını import ediyoruz
 from database import init_db, register_user, verify_user
 from billing import check_and_update_subscription, process_fake_payment
@@ -249,14 +250,34 @@ if not st.session_state.logged_in:
         )
         
         if st.button("Doğrulama Kodu Gönder"):
-            # ŞİFRE GÜVENLİK KONTROLÜ
+            # Şifre Güvenlik Kontrolü
             if len(reg_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
                 st.error("🔒 Şifreniz en az 8 karakter uzunluğunda olmalı ve en az bir özel karakter (!, @, #, $, vb.) içermelidir.")
             elif reg_username and reg_name and reg_email and reg_phone and reg_pass:
                 if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
                     st.session_state.generated_otp = str(random.randint(100000, 999999))
-                    st.session_state.otp_sent = True
-                    st.info(f"📱 Telefonunuza gelen SMS Doğrulama Kodu: {st.session_state.generated_otp}")
+                    
+                    try:
+                        # Streamlit Secrets'ten e-posta ayarlarını çek
+                        gonderici_mail = st.secrets["email"]["gonderici"]
+                        gonderici_sifre = st.secrets["email"]["sifre"]
+                        
+                        msg = MIMEText(f"Akıllı Bütçe Paneli hesabınızı oluşturmak için doğrulama kodunuz: {st.session_state.generated_otp}")
+                        msg['Subject'] = 'Hesap Doğrulama Kodunuz'
+                        msg['From'] = gonderici_mail
+                        msg['To'] = reg_email
+
+                        server = smtplib.SMTP('smtp.gmail.com', 587)
+                        server.starttls()
+                        server.login(gonderici_mail, gonderici_sifre)
+                        server.send_message(msg)
+                        server.quit()
+                        
+                        st.session_state.otp_sent = True
+                        st.success(f"📧 Doğrulama kodu {reg_email} adresine gönderildi! (Gelen Kutunuzu ve Spam klasörünü kontrol edin.)")
+                    except Exception as e:
+                        st.error(f"E-posta gönderilemedi. Lütfen Streamlit Secrets ayarlarınızı kontrol edin. Hata detayları: {e}")
+
                 else:
                     st.error("Robot testi başarısız! Toplama işlemini kontrol edin.")
             else:
@@ -274,7 +295,7 @@ if not st.session_state.logged_in:
                     else:
                         st.error("Bu kullanıcı adı, e-posta veya telefon zaten alınmış. Lütfen başka bir tane deneyin.")
                 else:
-                    st.error("Hatalı doğrulama kodu.")
+                    st.error("Hatalı doğrulama kodu.")      
 
 # --- 2. DURUM: KULLANICI GİRİŞ YAPMIŞSA (ÜYELİK VE ERİŞİM KONTROLÜ) ---
 else:
