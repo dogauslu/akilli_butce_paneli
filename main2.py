@@ -300,7 +300,6 @@ if not st.session_state.logged_in:
                         st.session_state.reset_otp = None
                 
     with tab2:
-        with tab2:
         st.subheader("Yeni Hesap Oluştur (7 Gün Ücretsiz)")
         # TÜM KUTUCUKLARA 'KEY' EKLENDİ Kİ VERİLER SİLİNMESİN
         reg_username = st.text_input("Kullanıcı Adı", key="reg_user")
