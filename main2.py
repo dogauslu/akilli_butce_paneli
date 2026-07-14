@@ -300,11 +300,13 @@ if not st.session_state.logged_in:
                         st.session_state.reset_otp = None
                 
     with tab2:
+        with tab2:
         st.subheader("Yeni Hesap Oluştur (7 Gün Ücretsiz)")
+        # TÜM KUTUCUKLARA 'KEY' EKLENDİ Kİ VERİLER SİLİNMESİN
         reg_username = st.text_input("Kullanıcı Adı", key="reg_user")
-        reg_name = st.text_input("Ad Soyad")
-        reg_email = st.text_input("E-posta Adresi")
-        reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx")
+        reg_name = st.text_input("Ad Soyad", key="reg_name")
+        reg_email = st.text_input("E-posta Adresi", key="reg_email")
+        reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx", key="reg_phone")
         
         show_pass_reg = st.checkbox("Şifreyi Göster", key="show_reg")
         reg_pass = st.text_input(
@@ -324,7 +326,7 @@ if not st.session_state.logged_in:
             
         captcha_answer = st.number_input(
             f"Ben Robot Değilim: {st.session_state.captcha_num1} + {st.session_state.captcha_num2} = ?",
-            step=1, value=0
+            step=1, value=0, key="captcha_answer"
         )
         
         if st.button("Doğrulama Kodu Gönder"):
@@ -361,10 +363,17 @@ if not st.session_state.logged_in:
                 st.error("Lütfen tüm alanları doldurun.")
                 
         if st.session_state.otp_sent:
-            user_otp = st.text_input("Doğrulama Kodunu Girin")
+            user_otp = st.text_input("Doğrulama Kodunu Girin", key="user_otp")
             if st.button("Kaydı Tamamla"):
                 if user_otp == st.session_state.generated_otp:
-                    success = register_user(reg_username, reg_name, reg_pass, reg_email, reg_phone)
+                    # Session state'teki verileri çekerek kaydetmeyi garantiliyoruz
+                    success = register_user(
+                        st.session_state.reg_user, 
+                        st.session_state.reg_name, 
+                        st.session_state.reg_pass, 
+                        st.session_state.reg_email, 
+                        st.session_state.reg_phone
+                    )
                     if success:
                         st.success("Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı.")
                         st.session_state.otp_sent = False
@@ -372,9 +381,7 @@ if not st.session_state.logged_in:
                     else:
                         st.error("❌ Kayıt Başarısız: Bu kullanıcı adı, e-posta adresi veya telefon numarası sistemde zaten kayıtlı!")
                 else:
-                    st.error("Hatalı doğrulama kodu.")
-
-else:
+                    st.error("Hatalı doğrulama kodu.")else:
     user = st.session_state.user_info
     status, message = check_and_update_subscription(user["id"])
     
