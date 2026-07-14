@@ -1,6 +1,4 @@
-# billing.py
-from datetime import datetime
-import sqlite3
+from datetime import datetime, timedelta
 from database import get_connection
 
 def check_and_update_subscription(user_id):
@@ -17,17 +15,24 @@ def check_and_update_subscription(user_id):
     trial_start = datetime.strptime(user["trial_start_date"], "%Y-%m-%d %H:%M:%S")
     trial_end = trial_start + timedelta(days=7)
     
-    # Kural 1: 1 Haftalık Ücretsiz Deneme Süresi Aktif mi?
+    # Kural 1: 1 Haftalık Deneme Süresi Devam Ediyorsa
     if now <= trial_end:
         cursor.execute("UPDATE users SET status = 'active' WHERE id = ?", (user_id,))
         conn.commit()
         conn.close()
-        remaining_days = (trial_end - now).days
-        return "active", f"Ücretsiz deneme sürümündesiniz. Kalan süre: {remaining_days} gün."
+        return "active", f"🎁 Ücretsiz deneme sürümündesiniz. Kalan: {(trial_end - now).days} gün."
 
-    # Deneme süresi bitmiş, ücretli abonelik durumunu kontrol et
+    # Kural 2: Deneme Süresi BİTTİYSE ve Hiç Ödeme Yapılmadıysa (is_premium == 0)
+    if user["is_premium"] == 0:
+        status = "suspended"
+        message = "⏳ 7 günlük ücretsiz deneme süreniz sona erdi! Uygulamayı kullanmaya devam etmek ve verilerinize ulaşmak için aylık 20 TL abonelik işlemini tamamlayın."
+        cursor.execute("UPDATE users SET status = ? WHERE id = ?", (status, user_id))
+        conn.commit()
+        conn.close()
+        return status, message
+
+    # Kural 3: Zaten Premium Üye İse (Ayın 15'i ve 20'si kuralları)
     current_day = now.day
-    is_premium = user["is_premium"]
     last_pay_str = user["last_payment_date"]
     
     has_paid_this_month = False
@@ -39,16 +44,13 @@ def check_and_update_subscription(user_id):
     status = "active"
     message = "Aboneliğiniz aktif."
 
-    # Kural 2: Ayın 15'i geldi veya geçti ama bu ay henüz ödeme yapılmadı
     if current_day >= 15 and not has_paid_this_month:
-        # Kural 3: Ayın 15'i ile 20'si arası (Uyarı Dönemi)
         if 15 <= current_day <= 20:
             status = "warning"
-            message = "⚠️ Dikkat! Aylık 20 TL abonelik ödemeniz tahsil edilemedi. Son ödeme tarihi her ayın 20'sidir. Lütfen kart bilgilerinizi güncelleyerek ödemenizi tamamlayın."
-        # Kural 4: Ayın 20'sinden sonrası (Askıya Alma Dönemi)
+            message = "⚠️ Dikkat! Aylık 20 TL ödemeniz alınamadı. Son ödeme tarihi ayın 20'sidir."
         else:
             status = "suspended"
-            message = "🛑 Ödeme süreniz dolmuştur! Verilerinize erişebilmek için aylık 20 TL olan üyelik ücretini ödemeniz gerekmektedir. Ödeme yapıldığı an verileriniz tekrar açılacaktır."
+            message = "🛑 Ödeme süreniz dolmuştur! Aylık 20 TL ödeme yaparak verilerinize ulaşabilirsiniz."
     
     cursor.execute("UPDATE users SET status = ? WHERE id = ?", (status, user_id))
     conn.commit()
@@ -56,7 +58,6 @@ def check_and_update_subscription(user_id):
     return status, message
 
 def process_fake_payment(user_id):
-    """Kredi/Banka Kartı simüle eden ödeme fonksiyonu"""
     conn = get_connection()
     cursor = conn.cursor()
     today_str = datetime.now().strftime("%Y-%m-%d")
