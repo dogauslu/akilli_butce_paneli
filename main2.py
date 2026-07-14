@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jul  2 11:31:11 2026
-
-@author: mac
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jul  2 11:31:11 2026
-
-Akıllı Bütçe Paneli - Üyelik & Ödeme Entegre Edilmiş Sürüm
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jul  2 11:31:11 2026
-
-Akıllı Bütçe Paneli - Üyelik, Şifre Kuralları & Ödeme Entegre Edilmiş Sürüm
+Akıllı Bütçe Paneli - Üyelik, Şifre Kuralları, E-posta Doğrulama & Ödeme Entegre Edilmiş Sürüm
 """
 
 import streamlit as st
@@ -28,9 +10,10 @@ import plotly.express as px
 import os
 import json
 import random
-import re  # Şifre özel karakter kontrolü için eklendi
+import re
 import smtplib
 from email.mime.text import MIMEText
+
 # Yeni eklediğimiz veritabanı ve abonelik dosyalarını import ediyoruz
 from database import init_db, register_user, verify_user
 from billing import check_and_update_subscription, process_fake_payment
@@ -202,7 +185,6 @@ def ana_butce_uygulamasi(user_id):
 
 # --- OTURUM VE ÖDEME KONTROLÜ ---
 
-# Oturum Durumlarını Başlat
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_info" not in st.session_state:
@@ -219,7 +201,14 @@ if not st.session_state.logged_in:
     with tab1:
         st.subheader("Üye Girişi")
         login_user = st.text_input("Kullanıcı Adı", key="login_user")
-        login_pass = st.text_input("Şifre", type="password", key="login_pass")
+        
+        # Parola Göster/Gizle
+        show_pass_login = st.checkbox("Parolayı Göster", key="show_login")
+        login_pass = st.text_input(
+            "Şifre", 
+            type="default" if show_pass_login else "password", 
+            key="login_pass"
+        )
         
         if st.button("Giriş Yap"):
             user = verify_user(login_user, login_pass)
@@ -237,7 +226,19 @@ if not st.session_state.logged_in:
         reg_name = st.text_input("Ad Soyad")
         reg_email = st.text_input("E-posta Adresi")
         reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx")
-        reg_pass = st.text_input("Şifre Belirleyin", type="password", key="reg_pass")
+        
+        # Kayıt Ol şifre gösterimi ve şifre tekrarı
+        show_pass_reg = st.checkbox("Şifreyi Göster", key="show_reg")
+        reg_pass = st.text_input(
+            "Şifre Belirleyin", 
+            type="default" if show_pass_reg else "password", 
+            key="reg_pass"
+        )
+        reg_pass_confirm = st.text_input(
+            "Şifre Tekrarı", 
+            type="default" if show_pass_reg else "password", 
+            key="reg_pass_confirm"
+        )
         
         # Ben Robot Değilim Testi
         if "captcha_num1" not in st.session_state:
@@ -250,15 +251,16 @@ if not st.session_state.logged_in:
         )
         
         if st.button("Doğrulama Kodu Gönder"):
-            # Şifre Güvenlik Kontrolü
-            if len(reg_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
-                st.error("🔒 Şifreniz en az 8 karakter uzunluğunda olmalı ve en az bir özel karakter (!, @, #, $, vb.) içermelidir.")
+            # ŞİFRE KONTROLLERİ
+            if reg_pass != reg_pass_confirm:
+                st.error("🔒 Şifreler birbiriyle eşleşmiyor!")
+            elif len(reg_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
+                st.error("🔒 Şifreniz en az 8 karakter olmalı ve en az bir özel karakter (!, @, #, $, vb.) içermelidir.")
             elif reg_username and reg_name and reg_email and reg_phone and reg_pass:
                 if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
                     st.session_state.generated_otp = str(random.randint(100000, 999999))
                     
                     try:
-                        # Streamlit Secrets'ten e-posta ayarlarını çek
                         gonderici_mail = st.secrets["email"]["gonderici"]
                         gonderici_sifre = st.secrets["email"]["sifre"]
                         
@@ -277,7 +279,6 @@ if not st.session_state.logged_in:
                         st.success(f"📧 Doğrulama kodu {reg_email} adresine gönderildi! (Gelen Kutunuzu ve Spam klasörünü kontrol edin.)")
                     except Exception as e:
                         st.error(f"E-posta gönderilemedi. Lütfen Streamlit Secrets ayarlarınızı kontrol edin. Hata detayları: {e}")
-
                 else:
                     st.error("Robot testi başarısız! Toplama işlemini kontrol edin.")
             else:
@@ -293,9 +294,9 @@ if not st.session_state.logged_in:
                         st.session_state.otp_sent = False
                         st.session_state.generated_otp = None
                     else:
-                        st.error("Bu kullanıcı adı, e-posta veya telefon zaten alınmış. Lütfen başka bir tane deneyin.")
+                        st.error("Bu kullanıcı adı veya e-posta zaten alınmış.")
                 else:
-                    st.error("Hatalı doğrulama kodu.")      
+                    st.error("Hatalı doğrulama kodu.")
 
 # --- 2. DURUM: KULLANICI GİRİŞ YAPMIŞSA (ÜYELİK VE ERİŞİM KONTROLÜ) ---
 else:
