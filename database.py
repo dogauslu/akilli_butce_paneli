@@ -108,3 +108,10 @@ def cleanup_inactive_accounts():
             
     conn.commit()
     conn.close()
+    def check_username_exists(username):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    return user is not None
