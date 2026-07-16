@@ -15,8 +15,7 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
-
-from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists 
+from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists
 from billing import check_and_update_subscription, process_fake_payment
 
 st.set_page_config(page_title="Akıllı Bütçe Paneli (V3)", page_icon="📱", layout="centered")
