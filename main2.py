@@ -363,75 +363,90 @@ if not st.session_state.logged_in:
         reg_name = st.text_input("Ad Soyad", key="reg_name")
         reg_email = st.text_input("E-posta Adresi", key="reg_email")
         reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx", key="reg_phone")
+        
         show_pass_reg = st.checkbox("Şifreyi Göster", key="show_reg")
-        reg_pass = st.text_input("Şifre Belirleyin", type="default" if show_pass_reg else "password", key="reg_pass")
-        reg_pass_confirm = st.text_input("Şifre Tekrarı", type="default" if show_pass_reg else "password", key="reg_pass_confirm")
+        reg_pass = st.text_input(
+            "Şifre Belirleyin", 
+            type="default" if show_pass_reg else "password", 
+            key="reg_pass"
+        )
+        reg_pass_confirm = st.text_input(
+            "Şifre Tekrarı", 
+            type="default" if show_pass_reg else "password", 
+            key="reg_pass_confirm"
+        )
         
         if "captcha_num1" not in st.session_state:
             st.session_state.captcha_num1 = random.randint(1, 10)
             st.session_state.captcha_num2 = random.randint(1, 10)
+            
         captcha_answer = st.number_input(
-            f"Ben Robot Değilim: {st.session_state.captcha_num1} + {st.session_state.captcha_num2} = ?", step=1, value=0, key="captcha_answer"
+            f"Ben Robot Değilim: {st.session_state.captcha_num1} + {st.session_state.captcha_num2} = ?",
+            step=1, value=0, key="captcha_answer"
         )
         
         if st.button("Doğrulama Kodu Gönder"):
-            # 1. KONTROL: Kullanıcı adı başkası tarafından alınmış mı?
             if check_username_exists(reg_username):
                 st.error("❌ Bu kullanıcı adı başkası tarafından alınmış! Lütfen farklı bir kullanıcı adı belirleyin.")
-            # 2. KONTROL: E-posta adresi zaten kullanılmış mı?
             elif check_email_exists(reg_email):
                 st.error("❌ Bu e-posta adresi zaten kullanılıyor! Lütfen 'Giriş Yap' sekmesini kullanın veya başka bir e-posta deneyin.")
-            # 3. KONTROL: Şifreler eşleşiyor mu?
-            elif reg_pass != reg_pass_confirm: 
+            elif reg_pass != reg_pass_confirm:
                 st.error("🔒 Hata: Girdiğiniz şifreler birbiriyle eşleşmiyor!")
-            # 4. KONTROL: Şifre en az 8 karakter mi? (Kaç karakter girdiğini gösterir)
             elif len(reg_pass) < 8:
                 st.error(f"🔒 Hata: Şifreniz çok kısa! En az 8 karakter olmalıdır. (Şu an {len(reg_pass)} karakter girdiniz)")
-            # 5. KONTROL: Şifre özel karakter içeriyor mu?
-            elif not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass): 
+            elif not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
                 st.error("🔒 Hata: Şifreniz en az bir adet özel karakter içermelidir! (Örnek: ! @ # $ % ^ & *)")
-            # 6. KONTROL: Bütün kutular doldurulmuş mu ve captcha doğru mu?
             elif reg_username and reg_name and reg_email and reg_phone and reg_pass:
                 if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
                     st.session_state.generated_otp = str(random.randint(100000, 999999))
+                    
                     try:
                         gonderici_mail = st.secrets["email"]["gonderici"]
                         gonderici_sifre = st.secrets["email"]["sifre"]
+                        
                         msg = MIMEText(f"Doğrulama kodunuz: {st.session_state.generated_otp}")
                         msg['Subject'] = 'Hesap Doğrulama Kodunuz'
                         msg['From'] = gonderici_mail
                         msg['To'] = reg_email
+
                         server = smtplib.SMTP('smtp.gmail.com', 587)
                         server.starttls()
                         server.login(gonderici_mail, gonderici_sifre)
                         server.send_message(msg)
                         server.quit()
+                        
                         st.session_state.otp_sent = True
                         st.success(f"📧 Doğrulama kodu gönderildi!")
-                    except Exception as e: 
-                        st.error(f"Hata: {e}")
-                else: 
+                    except Exception as e:
+                        st.error(f"E-posta gönderilemedi. Hata detayları: {e}")
+                else:
                     st.error("❌ Robot testi başarısız! Toplama işlemini doğru yaptığınızdan emin olun.")
-            else: 
+            else:
                 st.error("⚠️ Lütfen formu eksiksiz doldurun.")
                 
         if st.session_state.otp_sent:
             user_otp = st.text_input("Doğrulama Kodunu Girin", key="user_otp")
             if st.button("Kaydı Tamamla"):
                 if user_otp == st.session_state.generated_otp:
-                    success = register_user(st.session_state.reg_user, st.session_state.reg_name, 
-                                            st.session_state.reg_pass, st.session_state.reg_email, st.session_state.reg_phone)
+                    success = register_user(
+                        st.session_state.reg_user, 
+                        st.session_state.reg_name, 
+                        st.session_state.reg_pass, 
+                        st.session_state.reg_email, 
+                        st.session_state.reg_phone
+                    )
                     if success:
                         st.success("🎉 Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı.")
                         st.session_state.otp_sent = False
                         st.session_state.generated_otp = None
-                    else: 
+                    else:
                         st.error("❌ Kayıt Başarısız: Bu telefon numarası sistemde zaten kayıtlı!")
-                else: 
+                else:
                     st.error("❌ Hatalı doğrulama kodu girdiniz.")
-    else:
-     user = st.session_state.user_info
-     status, message = check_and_update_subscription(user["id"])
+
+else:
+    user = st.session_state.user_info
+    status, message = check_and_update_subscription(user["id"])
     
     if status == "suspended":
         st.error(message)
@@ -441,15 +456,18 @@ if not st.session_state.logged_in:
             card_name = st.text_input("Kart Üzerindeki İsim")
             card_no = st.text_input("Kart Numarası", max_chars=16)
             col1, col2 = st.columns(2)
-            with col1: card_exp = st.text_input("Son Kullanma (AA/YY)")
-            with col2: card_cvv = st.text_input("CVV", type="password", max_chars=3)
+            with col1: 
+                card_exp = st.text_input("Son Kullanma (AA/YY)")
+            with col2: 
+                card_cvv = st.text_input("CVV", type="password", max_chars=3)
             pay_submit = st.form_submit_button("Güvenli Ödeme Yap ve Verilerimi Aç")
             if pay_submit:
                 if card_name and len(card_no) == 16 and card_exp and len(card_cvv) == 3:
                     process_fake_payment(user["id"])
                     st.success("Ödemeniz başarıyla alındı! Aboneliğiniz aktif edildi.")
                     st.rerun()
-                else: st.error("Lütfen kart bilgilerini doğru girin.")
+                else: 
+                    st.error("Lütfen kart bilgilerini doğru girin.")
     else:
         if status == "warning":
             st.warning(message)
