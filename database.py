@@ -14,7 +14,6 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Kullanıcılar Tablosu (UNIQUE sayesinde aynı kullanıcı adı, e-posta veya telefon 2. kez KULLANILAMAZ)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +47,6 @@ def register_user(username, full_name, password, email, phone):
         conn.commit()
         return True
     except sqlite3.IntegrityError:
-        # Eğer UNIQUE (Benzersiz) kuralı çiğnenirse burası çalışır ve hata döner
         return False
     finally:
         conn.close()
@@ -79,12 +77,10 @@ def update_password(email, new_password):
     conn.close()
     return True
 
-# --- OTOMATİK TEMİZLİK ROBOTU (1 YIL KONTROLÜ) ---
 def cleanup_inactive_accounts():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Hiç ödeme yapmamış (is_premium = 0) kullanıcıları bul
     cursor.execute("SELECT id, trial_start_date FROM users WHERE is_premium = 0")
     users = cursor.fetchall()
     
@@ -92,23 +88,19 @@ def cleanup_inactive_accounts():
     for u in users:
         try:
             trial_start = datetime.strptime(u["trial_start_date"], "%Y-%m-%d %H:%M:%S")
-            # Kayıt tarihinin üzerinden 365 gün (1 yıl) geçmiş mi?
             if (now - trial_start).days >= 365:
                 user_id = u["id"]
-                
-                # 1. Aşama: Kullanıcının özel CSV veri dosyasını sunucudan tamamen sil
                 file_name = f"akilli_butce_verileri_{user_id}.csv"
                 if os.path.exists(file_name):
                     os.remove(file_name)
-                    
-                # 2. Aşama: Kullanıcıyı veritabanından tamamen sil
                 cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         except Exception:
             pass
             
     conn.commit()
     conn.close()
-    def check_username_exists(username):
+
+def check_username_exists(username):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
