@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Akıllı Bütçe Paneli - Yeni Modern Mobil UI, Tam Sürüm (Bölünmüş Import)
-"""
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -16,15 +12,11 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 
-# Hata riskini sıfıra indirmek için importlar ayrı ayrı kısa satırlara bölündü:
-from database import init_db, register_user, verify_user
-from database import check_email_exists, update_password
-from database import cleanup_inactive_accounts, check_username_exists
+from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists
 from billing import check_and_update_subscription, process_fake_payment
 
 st.set_page_config(page_title="Akıllı Bütçe Paneli", page_icon="📱", layout="centered")
 
-# --- ÖZEL CSS (GÖRSELDEKİ TASARIM İÇİN) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 600px; }
@@ -72,11 +64,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Veritabanını ve temizlik robotunu başlat
 init_db()
 cleanup_inactive_accounts()
 
-# --- ANA BÜTÇE PANELİ ---
 def ana_butce_uygulamasi(user_id):
     VERI_DOSYASI = f"akilli_butce_verileri_{user_id}.csv"
 
@@ -95,8 +85,7 @@ def ana_butce_uygulamasi(user_id):
     if "aktif_sayfa" not in st.session_state:
         st.session_state.aktif_sayfa = "Ana Sayfa"
 
-    sayfa = st.radio("Menü", ["Ana Sayfa", "İşlemler", "Banka Entegrasyonu", "Profil"], 
-                     horizontal=True, label_visibility="collapsed")
+    sayfa = st.radio("Menü", ["Ana Sayfa", "İşlemler", "Banka Entegrasyonu", "Profil"], horizontal=True, label_visibility="collapsed")
 
     if sayfa == "Ana Sayfa":
         toplam_gelir = giderler_df[giderler_df["Tür"] == "Gelir"]["Tutar"].sum()
@@ -243,8 +232,10 @@ def ana_butce_uygulamasi(user_id):
         st.write(f"**E-posta:** {user['email']}")
         
         status, message = check_and_update_subscription(user["id"])
-        if status == "active": st.success(message)
-        elif status == "warning": st.warning(message)
+        if status == "active": 
+            st.success(message)
+        elif status == "warning": 
+            st.warning(message)
         
         st.markdown("---")
         if st.button("🚪 Güvenli Çıkış Yap", type="primary"):
@@ -252,8 +243,6 @@ def ana_butce_uygulamasi(user_id):
             st.session_state.user_info = None
             st.rerun()
 
-
-# --- OTURUM VE YÖNETİM SİSTEMİ ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = None
 if "otp_sent" not in st.session_state: st.session_state.otp_sent = False
@@ -358,16 +347,8 @@ if not st.session_state.logged_in:
         reg_phone = st.text_input("Cep Telefonu", placeholder="05xxxxxxxxx", key="reg_phone")
         
         show_pass_reg = st.checkbox("Şifreyi Göster", key="show_reg")
-        reg_pass = st.text_input(
-            "Şifre Belirleyin", 
-            type="default" if show_pass_reg else "password", 
-            key="reg_pass"
-        )
-        reg_pass_confirm = st.text_input(
-            "Şifre Tekrarı", 
-            type="default" if show_pass_reg else "password", 
-            key="reg_pass_confirm"
-        )
+        reg_pass = st.text_input("Şifre Belirleyin", type="default" if show_pass_reg else "password", key="reg_pass")
+        reg_pass_confirm = st.text_input("Şifre Tekrarı", type="default" if show_pass_reg else "password", key="reg_pass_confirm")
         
         if "captcha_num1" not in st.session_state:
             st.session_state.captcha_num1 = random.randint(1, 10)
