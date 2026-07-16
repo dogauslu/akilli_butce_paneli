@@ -12,6 +12,7 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+    # Tabloyu baştan oluşturma riskini almamak için var olanı korur
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,7 +20,8 @@ def init_db():
         full_name TEXT NOT NULL,
         password TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        phone TEXT UNIQUE NOT NULL
+        phone TEXT UNIQUE NOT NULL,
+        trial_start_date TEXT
     )
     """)
     conn.commit()
@@ -32,11 +34,15 @@ def register_user(username, full_name, password, email, phone):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO users (username, full_name, password, email, phone) VALUES (?,?,?,?,?,?)",
-                       (username, full_name, hash_password(password), email, phone))
+        # Tarihi gün ve saat olarak ekliyoruz
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("INSERT INTO users (username, full_name, password, email, phone, trial_start_date) VALUES (?,?,?,?,?,?)",
+                       (username, full_name, hash_password(password), email, phone, now))
         conn.commit()
         return True
-    except:
+    except Exception as e:
+        # Eğer hata alırsan Streamlit arayüzünde hatayı göreceksin
+        st.error(f"Veritabanı Hatası: {e}")
         return False
     finally:
         conn.close()
