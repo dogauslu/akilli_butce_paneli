@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Akıllı Bütçe Paneli - Yeni Modern Mobil UI, Tam Sürüm
+Akıllı Bütçe Paneli - Yeni Modern Mobil UI, Tam Sürüm (Güvenli Format)
 """
 
 import streamlit as st
@@ -16,18 +16,25 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 
-from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists
+# Uzun satır hatasını önlemek için importlar alt alta yazılmıştır
+from database import (
+    init_db, 
+    register_user, 
+    verify_user, 
+    check_email_exists, 
+    update_password, 
+    cleanup_inactive_accounts, 
+    check_username_exists
+)
 from billing import check_and_update_subscription, process_fake_payment
 
-st.set_page_config(page_title="Akıllı Bütçe Paneli (V3)", page_icon="📱", layout="centered")
+st.set_page_config(page_title="Akıllı Bütçe Paneli", page_icon="📱", layout="centered")
 
 # --- ÖZEL CSS (GÖRSELDEKİ TASARIM İÇİN) ---
 st.markdown("""
 <style>
-    /* Streamlit varsayılan padding'leri küçült */
     .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 600px; }
     
-    /* Bakiye Kartı (Hero Card) */
     .hero-card {
         background: linear-gradient(135deg, #1A2A40 0%, #205E6D 50%, #2C8C9E 100%);
         border-radius: 15px;
@@ -41,7 +48,6 @@ st.markdown("""
     .hero-balance { font-size: 38px; font-weight: 700; margin: 0; letter-spacing: -1px; }
     .hero-subtitle { font-size: 14px; opacity: 0.8; margin-top: 5px; }
     
-    /* İşlem Listesi (Son İşlemler) */
     .islem-satiri {
         display: flex; align-items: center; justify-content: space-between;
         padding: 12px 0; border-bottom: 1px solid #f0f0f0;
@@ -65,11 +71,14 @@ st.markdown("""
     .tutar-eksi { color: #333; }
     .tutar-arti { color: #4CAF50; }
     
-    /* Streamlit radyo butonlarını yatay menüye benzetme */
-    div.row-widget.stRadio > div{flex-direction:row; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 10px;}
+    div.row-widget.stRadio > div {
+        flex-direction:row; justify-content: space-around; 
+        background: #f8f9fa; padding: 10px; border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# Veritabanını ve temizlik robotunu başlat
 init_db()
 cleanup_inactive_accounts()
 
@@ -116,14 +125,14 @@ def ana_butce_uygulamasi(user_id):
         
         c1, c2, c3 = st.columns(3)
         with c1:
-            if st.button("🟢 Gelir Ekle", use_container_width=True):
-                st.info("Üst menüden 'İşlemler' sekmesine gidiniz.")
+            if st.button("🟢 Gelir", use_container_width=True):
+                st.info("İşlemler sekmesine geçin.")
         with c2:
-            if st.button("🔴 Gider Ekle", use_container_width=True):
-                st.info("Üst menüden 'İşlemler' sekmesine gidiniz.")
+            if st.button("🔴 Gider", use_container_width=True):
+                st.info("İşlemler sekmesine geçin.")
         with c3:
             if st.button("🔵 Transfer", use_container_width=True):
-                st.info("Yakında Eklenecek")
+                st.info("Yakında eklenecek.")
 
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -138,7 +147,6 @@ def ana_butce_uygulamasi(user_id):
         if not sadece_giderler.empty:
             gunluk_toplam = sadece_giderler.groupby("Tarih")["Tutar"].sum().reset_index()
             fig = px.area(gunluk_toplam, x="Tarih", y="Tutar")
-            
             fig.update_traces(line_shape='spline', fillcolor='rgba(44, 140, 158, 0.2)', line_color='#2C8C9E')
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -149,7 +157,7 @@ def ana_butce_uygulamasi(user_id):
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
-            st.info("Grafik oluşturulabilmesi için gider işlemi ekleyin.")
+            st.info("Grafik oluşturulabilmesi için gider ekleyin.")
 
         st.markdown("<h3 style='margin-bottom:10px; font-size:20px;'>Son İşlemler</h3>", unsafe_allow_html=True)
         
@@ -157,7 +165,6 @@ def ana_butce_uygulamasi(user_id):
             st.write("Henüz işlem yok.")
         else:
             son_5 = giderler_df.tail(5).iloc[::-1]
-            
             html_islem_listesi = ""
             for _, row in son_5.iterrows():
                 kat = str(row['Kategori']).lower()
@@ -205,12 +212,12 @@ def ana_butce_uygulamasi(user_id):
                 yeni_islem = pd.DataFrame([{"Tarih": tarih, "Kategori": kategori, "Tür": tur, "Tutar": tutar, "Açıklama": aciklama}])
                 guncel_df = pd.concat([giderler_df, yeni_islem], ignore_index=True)
                 guncel_df.to_csv(VERI_DOSYASI, index=False)
-                st.success("İşlem başarıyla eklendi! Ana Sayfadan görebilirsiniz.")
+                st.success("İşlem eklendi! Ana Sayfadan görebilirsiniz.")
 
     elif sayfa == "Banka Entegrasyonu":
         st.header("🔄 Dosya Yükle")
-        islem_turu = st.radio("İşlem Türü", ["Gider (Kredi Kartı)", "Gelir (Hesap Dökümü)"], horizontal=True)
-        yuklenen_dosya = st.file_uploader("CSV veya Excel dosyası seçin", type=["csv", "xlsx"])
+        islem_turu = st.radio("İşlem Türü", ["Gider (Kredi Kartı)", "Gelir (Hesap)"], horizontal=True)
+        yuklenen_dosya = st.file_uploader("CSV/Excel seçin", type=["csv", "xlsx"])
 
         if yuklenen_dosya is not None:
             try:
@@ -220,7 +227,7 @@ def ana_butce_uygulamasi(user_id):
                 aciklama_kol = c2.selectbox("Açıklama", ekstre.columns)
                 tutar_kol = c3.selectbox("Tutar", ekstre.columns)
 
-                if st.button("Veriyi Sisteme İşle"):
+                if st.button("Sisteme İşle"):
                     yeni_veriler = pd.DataFrame()
                     yeni_veriler["Tarih"] = pd.to_datetime(ekstre[tarih_kol]).dt.date
                     yeni_veriler["Açıklama"] = ekstre[aciklama_kol].astype(str)
@@ -251,6 +258,7 @@ def ana_butce_uygulamasi(user_id):
             st.session_state.user_info = None
             st.rerun()
 
+
 # --- OTURUM VE YÖNETİM SİSTEMİ ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = None
@@ -279,7 +287,8 @@ if not st.session_state.logged_in:
                     st.session_state.user_info = dict(user)
                     st.success("Giriş başarılı!")
                     st.rerun()
-                else: st.error("Kullanıcı adı veya şifre hatalı!")
+                else: 
+                    st.error("Kullanıcı adı veya şifre hatalı!")
             
             st.markdown("---")
             if st.button("🔑 Şifremi Unuttum"):
@@ -315,8 +324,10 @@ if not st.session_state.logged_in:
                             server.quit()
                             st.session_state.reset_otp_sent = True
                             st.success("📧 Sıfırlama kodu gönderildi!")
-                        except Exception as e: st.error(f"E-posta gönderilemedi. Hata: {e}")
-                    else: st.error("Hesap bulunamadı!")
+                        except Exception as e: 
+                            st.error(f"E-posta gönderilemedi. Hata: {e}")
+                    else: 
+                        st.error("Hesap bulunamadı!")
                 
                 if st.session_state.reset_otp_sent:
                     st.markdown("---")
@@ -325,7 +336,8 @@ if not st.session_state.logged_in:
                         if entered_otp == st.session_state.reset_otp:
                             st.session_state.reset_otp_verified = True
                             st.rerun()
-                        else: st.error("❌ Hatalı doğrulama kodu!")
+                        else: 
+                            st.error("❌ Hatalı doğrulama kodu!")
             else:
                 st.success("✅ Kod doğrulandı! Şimdi yeni şifrenizi oluşturabilirsiniz.")
                 show_pass_reset = st.checkbox("Yeni Şifreyi Göster", key="show_reset")
@@ -333,7 +345,8 @@ if not st.session_state.logged_in:
                 new_pass_confirm = st.text_input("Yeni Şifre Tekrar", type="default" if show_pass_reset else "password")
                 
                 if st.button("Şifreyi Güncelle"):
-                    if new_pass != new_pass_confirm: st.error("❌ Şifreler eşleşmiyor!")
+                    if new_pass != new_pass_confirm: 
+                        st.error("❌ Şifreler eşleşmiyor!")
                     elif len(new_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_pass):
                         st.error("🔒 Şifreniz en az 8 karakter ve 1 özel karakter içermelidir.")
                     else:
@@ -373,15 +386,15 @@ if not st.session_state.logged_in:
         
         if st.button("Doğrulama Kodu Gönder"):
             if check_username_exists(reg_username):
-                st.error("❌ Bu kullanıcı adı başkası tarafından alınmış! Lütfen farklı bir kullanıcı adı belirleyin.")
+                st.error("❌ Bu kullanıcı adı alınmış! Lütfen farklı bir kullanıcı adı belirleyin.")
             elif check_email_exists(reg_email):
-                st.error("❌ Bu e-posta adresi zaten kullanılıyor! Lütfen 'Giriş Yap' sekmesini kullanın veya başka bir e-posta deneyin.")
+                st.error("❌ Bu e-posta zaten kullanılıyor! Lütfen 'Giriş Yap'ı kullanın.")
             elif reg_pass != reg_pass_confirm:
-                st.error("🔒 Hata: Girdiğiniz şifreler birbiriyle eşleşmiyor!")
+                st.error("🔒 Hata: Şifreler eşleşmiyor!")
             elif len(reg_pass) < 8:
-                st.error(f"🔒 Hata: Şifreniz çok kısa! En az 8 karakter olmalıdır. (Şu an {len(reg_pass)} karakter girdiniz)")
+                st.error(f"🔒 Hata: Şifreniz çok kısa! En az 8 karakter olmalıdır. (Şu an {len(reg_pass)})")
             elif not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass):
-                st.error("🔒 Hata: Şifreniz en az bir adet özel karakter içermelidir! (Örnek: ! @ # $ % ^ & *)")
+                st.error("🔒 Hata: Şifreniz en az bir adet özel karakter içermelidir! (Örn: !@#$)")
             elif reg_username and reg_name and reg_email and reg_phone and reg_pass:
                 if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
                     st.session_state.generated_otp = str(random.randint(100000, 999999))
@@ -404,9 +417,9 @@ if not st.session_state.logged_in:
                         st.session_state.otp_sent = True
                         st.success(f"📧 Doğrulama kodu gönderildi!")
                     except Exception as e:
-                        st.error(f"E-posta gönderilemedi. Hata detayları: {e}")
+                        st.error(f"E-posta gönderilemedi. Hata: {e}")
                 else:
-                    st.error("❌ Robot testi başarısız! Toplama işlemini doğru yaptığınızdan emin olun.")
+                    st.error("❌ Robot testi başarısız! Toplama işlemini doğru yapın.")
             else:
                 st.error("⚠️ Lütfen formu eksiksiz doldurun.")
                 
