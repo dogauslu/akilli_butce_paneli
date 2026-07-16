@@ -12,7 +12,6 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # Tabloyu baştan oluşturma riskini almamak için var olanı korur
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,16 +33,12 @@ def register_user(username, full_name, password, email, phone):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Tarihi gün ve saat olarak ekliyoruz
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("INSERT INTO users (username, full_name, password, email, phone, trial_start_date) VALUES (?,?,?,?,?,?)",
-                       (username, full_name, hash_password(password), email, phone, now))
+                       (username, full_name, hash_password(password), email, phone, datetime.now().strftime("%Y-%m-%d")))
         conn.commit()
         return True
-    except Exception as e:
-        # Eğer hata alırsan Streamlit arayüzünde hatayı göreceksin
-        st.error(f"Veritabanı Hatası: {e}")
-        return False
+    except Exception:
+        return False # Hata olursa sadece False döner
     finally:
         conn.close()
 
@@ -52,3 +47,15 @@ def verify_user(username, password):
     user = conn.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hash_password(password))).fetchone()
     conn.close()
     return user
+
+def check_email_exists(email):
+    conn = get_connection()
+    user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    return user is not None
+
+def check_username_exists(username):
+    conn = get_connection()
+    user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return user is not None
