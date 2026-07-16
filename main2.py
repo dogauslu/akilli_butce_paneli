@@ -1,9 +1,6 @@
 import streamlit as st
-import pandas as pd
-import os
-from database import init_db, register_user, verify_user
+from database import init_db, register_user, verify_user, check_email_exists, check_username_exists
 
-# Uygulamayı Başlat
 init_db()
 st.set_page_config(page_title="Bütçe Paneli", layout="centered")
 
@@ -21,7 +18,7 @@ if not st.session_state.logged_in:
                 st.session_state.user_info = dict(user)
                 st.rerun()
             else:
-                st.error("Kullanıcı adı veya şifre hatalı!")
+                st.error("Hatalı kullanıcı adı veya şifre!")
     with tab2:
         reg_u = st.text_input("Kullanıcı Adı", key="r_u")
         reg_n = st.text_input("Ad Soyad", key="r_n")
@@ -29,21 +26,17 @@ if not st.session_state.logged_in:
         reg_ph = st.text_input("Telefon", key="r_ph")
         reg_p = st.text_input("Şifre", type="password", key="r_p")
         if st.button("Kaydı Tamamla"):
-            if register_user(reg_u, reg_n, reg_p, reg_e, reg_ph):
-                st.success("Kayıt başarılı, giriş yapabilirsin.")
+            if check_username_exists(reg_u):
+                st.error("Bu kullanıcı adı zaten alınmış!")
+            elif check_email_exists(reg_e):
+                st.error("Bu e-posta zaten kullanımda!")
+            elif register_user(reg_u, reg_n, reg_p, reg_e, reg_ph):
+                st.success("Kayıt başarılı! Giriş yapabilirsiniz.")
             else:
-                st.error("Kayıt başarısız!")
+                st.error("Bilinmeyen bir veritabanı hatası oluştu.")
 else:
     st.title("💰 Bütçe Takip Paneli")
     st.write(f"Hoş geldin, {st.session_state.user_info['full_name']}")
-    
-    # Çok basit veri girişi
-    st.subheader("İşlem Ekle")
-    tutar = st.number_input("Tutar", min_value=0.0)
-    tur = st.radio("Tür", ["Gelir", "Gider"])
-    if st.button("Kaydet"):
-        st.write(f"{tur} kaydedildi: {tutar} TL")
-        
     if st.button("Çıkış Yap"):
         st.session_state.logged_in = False
         st.rerun()
