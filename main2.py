@@ -15,6 +15,7 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
+
 from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists
 from billing import check_and_update_subscription, process_fake_payment
 
@@ -88,28 +89,23 @@ def ana_butce_uygulamasi(user_id):
 
     giderler_df = verileri_yukle()
     
-    # Navigasyon Durumu
     if "aktif_sayfa" not in st.session_state:
         st.session_state.aktif_sayfa = "Ana Sayfa"
 
     sayfa = st.radio("Menü", ["Ana Sayfa", "İşlemler", "Banka Entegrasyonu", "Profil"], 
                      horizontal=True, label_visibility="collapsed")
 
-    # --- 1. ANA SAYFA (TASARIM ODAKLI) ---
     if sayfa == "Ana Sayfa":
-        # Hesaplamalar
         toplam_gelir = giderler_df[giderler_df["Tür"] == "Gelir"]["Tutar"].sum()
         toplam_gider = giderler_df[giderler_df["Tür"] == "Gider"]["Tutar"].sum()
         kalan_bakiye = toplam_gelir - toplam_gider
         
-        # Bu ayki harcamalar
         bugun = datetime.now().date()
         bu_ay_df = giderler_df[pd.to_datetime(giderler_df["Tarih"]).dt.month == bugun.month]
         bu_ay_gider = bu_ay_df[bu_ay_df["Tür"] == "Gider"]["Tutar"].sum()
         bu_ay_gelir = bu_ay_df[bu_ay_df["Tür"] == "Gelir"]["Tutar"].sum()
         bu_ay_net = bu_ay_gelir - bu_ay_gider
         
-        # Hero Card (Bakiye)
         st.markdown(f"""
             <div class="hero-card">
                 <div class="hero-title">Toplam Bakiye</div>
@@ -118,7 +114,6 @@ def ana_butce_uygulamasi(user_id):
             </div>
         """, unsafe_allow_html=True)
         
-        # Hızlı İşlemler Butonları (Görseldeki +, -, ok ikonları)
         c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("🟢 Gelir Ekle", use_container_width=True):
@@ -132,7 +127,6 @@ def ana_butce_uygulamasi(user_id):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Aylık Genel Bakış (Kıvrımlı Grafik)
         st.markdown(f"""
             <div style="display:flex; justify-content:space-between; align-items:flex-end;">
                 <h3 style="margin:0; font-size:20px;">Aylık Genel Bakış</h3>
@@ -142,11 +136,9 @@ def ana_butce_uygulamasi(user_id):
         
         sadece_giderler = giderler_df[giderler_df["Tür"] == "Gider"]
         if not sadece_giderler.empty:
-            # Günlük toplamı alıp pürüzsüz alan grafiği (spline area) çizdirme
             gunluk_toplam = sadece_giderler.groupby("Tarih")["Tutar"].sum().reset_index()
             fig = px.area(gunluk_toplam, x="Tarih", y="Tutar")
             
-            # Tasarımı görsele benzetmek için çizgiyi yumuşat ve arkaplanı sil
             fig.update_traces(line_shape='spline', fillcolor='rgba(44, 140, 158, 0.2)', line_color='#2C8C9E')
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -159,17 +151,15 @@ def ana_butce_uygulamasi(user_id):
         else:
             st.info("Grafik oluşturulabilmesi için gider işlemi ekleyin.")
 
-        # Son İşlemler Listesi
         st.markdown("<h3 style='margin-bottom:10px; font-size:20px;'>Son İşlemler</h3>", unsafe_allow_html=True)
         
         if giderler_df.empty:
             st.write("Henüz işlem yok.")
         else:
-            son_5 = giderler_df.tail(5).iloc[::-1] # Son 5 işlemi ters çevir (en yeni en üstte)
+            son_5 = giderler_df.tail(5).iloc[::-1]
             
             html_islem_listesi = ""
             for _, row in son_5.iterrows():
-                # Kategoriye göre ikon ve renk atama
                 kat = str(row['Kategori']).lower()
                 ikon, bg_class = "🏷️", "bg-diger"
                 if "market" in kat or "gıda" in kat: ikon, bg_class = "🛒", "bg-market"
@@ -196,7 +186,6 @@ def ana_butce_uygulamasi(user_id):
                 """
             st.markdown(html_islem_listesi, unsafe_allow_html=True)
 
-    # --- 2. İŞLEM EKLE SAYFASI ---
     elif sayfa == "İşlemler":
         st.header("➕ Yeni İşlem Ekle")
         with st.form("islem_formu"):
@@ -218,7 +207,6 @@ def ana_butce_uygulamasi(user_id):
                 guncel_df.to_csv(VERI_DOSYASI, index=False)
                 st.success("İşlem başarıyla eklendi! Ana Sayfadan görebilirsiniz.")
 
-    # --- 3. BANKA ENTEGRASYONU ---
     elif sayfa == "Banka Entegrasyonu":
         st.header("🔄 Dosya Yükle")
         islem_turu = st.radio("İşlem Türü", ["Gider (Kredi Kartı)", "Gelir (Hesap Dökümü)"], horizontal=True)
@@ -238,7 +226,7 @@ def ana_butce_uygulamasi(user_id):
                     yeni_veriler["Açıklama"] = ekstre[aciklama_kol].astype(str)
                     yeni_veriler["Tutar"] = ekstre[tutar_kol].astype(float).abs()
                     yeni_veriler["Tür"] = "Gider" if "Gider" in islem_turu else "Gelir"
-                    yeni_veriler["Kategori"] = "Diğer" # Basitleştirildi
+                    yeni_veriler["Kategori"] = "Diğer"
                     
                     guncel_df = pd.concat([verileri_yukle(), yeni_veriler], ignore_index=True)
                     guncel_df.to_csv(VERI_DOSYASI, index=False)
@@ -246,7 +234,6 @@ def ana_butce_uygulamasi(user_id):
             except Exception as e:
                 st.error(f"Hata: {e}")
 
-    # --- 4. PROFİL & YÖNETİM ---
     elif sayfa == "Profil":
         user = st.session_state.user_info
         st.header("👤 Profiliniz")
@@ -264,7 +251,7 @@ def ana_butce_uygulamasi(user_id):
             st.session_state.user_info = None
             st.rerun()
 
-# --- OTURUM VE YÖNETİM SİSTEMİ (Değişmedi) ---
+# --- OTURUM VE YÖNETİM SİSTEMİ ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = None
 if "otp_sent" not in st.session_state: st.session_state.otp_sent = False
