@@ -16,7 +16,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 
-from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts
+from database import init_db, register_user, verify_user, check_email_exists, update_password, cleanup_inactive_accounts, check_username_exists 
 from billing import check_and_update_subscription, process_fake_payment
 
 st.set_page_config(page_title="Akıllı Bütçe Paneli (V3)", page_icon="📱", layout="centered")
@@ -375,8 +375,22 @@ if not st.session_state.logged_in:
         )
         
         if st.button("Doğrulama Kodu Gönder"):
-            if reg_pass != reg_pass_confirm: st.error("🔒 Şifreler eşleşmiyor!")
-            elif len(reg_pass) < 8 or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass): st.error("🔒 Şifre kurallara uymuyor.")
+            # 1. KONTROL: Kullanıcı adı başkası tarafından alınmış mı?
+            if check_username_exists(reg_username):
+                st.error("❌ Bu kullanıcı adı başkası tarafından alınmış! Lütfen farklı bir kullanıcı adı belirleyin.")
+            # 2. KONTROL: E-posta adresi zaten kullanılmış mı?
+            elif check_email_exists(reg_email):
+                st.error("❌ Bu e-posta adresi zaten kullanılıyor! Lütfen 'Giriş Yap' sekmesini kullanın veya başka bir e-posta deneyin.")
+            # 3. KONTROL: Şifreler eşleşiyor mu?
+            elif reg_pass != reg_pass_confirm: 
+                st.error("🔒 Hata: Girdiğiniz şifreler birbiriyle eşleşmiyor!")
+            # 4. KONTROL: Şifre en az 8 karakter mi? (Kaç karakter girdiğini gösterir)
+            elif len(reg_pass) < 8:
+                st.error(f"🔒 Hata: Şifreniz çok kısa! En az 8 karakter olmalıdır. (Şu an {len(reg_pass)} karakter girdiniz)")
+            # 5. KONTROL: Şifre özel karakter içeriyor mu?
+            elif not re.search(r"[!@#$%^&*(),.?\":{}|<>]", reg_pass): 
+                st.error("🔒 Hata: Şifreniz en az bir adet özel karakter içermelidir! (Örnek: ! @ # $ % ^ & *)")
+            # 6. KONTROL: Bütün kutular doldurulmuş mu ve captcha doğru mu?
             elif reg_username and reg_name and reg_email and reg_phone and reg_pass:
                 if captcha_answer == (st.session_state.captcha_num1 + st.session_state.captcha_num2):
                     st.session_state.generated_otp = str(random.randint(100000, 999999))
@@ -394,9 +408,12 @@ if not st.session_state.logged_in:
                         server.quit()
                         st.session_state.otp_sent = True
                         st.success(f"📧 Doğrulama kodu gönderildi!")
-                    except Exception as e: st.error(f"Hata: {e}")
-                else: st.error("Robot testi başarısız!")
-            else: st.error("Tüm alanları doldurun.")
+                    except Exception as e: 
+                        st.error(f"Hata: {e}")
+                else: 
+                    st.error("❌ Robot testi başarısız! Toplama işlemini doğru yaptığınızdan emin olun.")
+            else: 
+                st.error("⚠️ Lütfen formu eksiksiz doldurun.")
                 
         if st.session_state.otp_sent:
             user_otp = st.text_input("Doğrulama Kodunu Girin", key="user_otp")
@@ -405,13 +422,13 @@ if not st.session_state.logged_in:
                     success = register_user(st.session_state.reg_user, st.session_state.reg_name, 
                                             st.session_state.reg_pass, st.session_state.reg_email, st.session_state.reg_phone)
                     if success:
-                        st.success("Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı.")
+                        st.success("🎉 Kaydınız başarıyla tamamlandı! 7 günlük ücretsiz denemeniz başladı.")
                         st.session_state.otp_sent = False
                         st.session_state.generated_otp = None
-                    else: st.error("❌ Kayıt Başarısız: Bilgiler zaten kayıtlı!")
-                else: st.error("Hatalı doğrulama kodu.")
-
-else:
+                    else: 
+                        st.error("❌ Kayıt Başarısız: Bu telefon numarası sistemde zaten kayıtlı!")
+                else: 
+                    st.error("❌ Hatalı doğrulama kodu girdiniz.")else:
     user = st.session_state.user_info
     status, message = check_and_update_subscription(user["id"])
     
