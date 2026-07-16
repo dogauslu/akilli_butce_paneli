@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Akıllı Bütçe Paneli - Yeni Modern Mobil UI, Tam Sürüm (Güvenli Format)
+Akıllı Bütçe Paneli - Yeni Modern Mobil UI, Tam Sürüm (Bölünmüş Import)
 """
 
 import streamlit as st
@@ -16,16 +16,10 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 
-# Uzun satır hatasını önlemek için importlar alt alta yazılmıştır
-from database import (
-    init_db, 
-    register_user, 
-    verify_user, 
-    check_email_exists, 
-    update_password, 
-    cleanup_inactive_accounts, 
-    check_username_exists
-)
+# Hata riskini sıfıra indirmek için importlar ayrı ayrı kısa satırlara bölündü:
+from database import init_db, register_user, verify_user
+from database import check_email_exists, update_password
+from database import cleanup_inactive_accounts, check_username_exists
 from billing import check_and_update_subscription, process_fake_payment
 
 st.set_page_config(page_title="Akıllı Bütçe Paneli", page_icon="📱", layout="centered")
