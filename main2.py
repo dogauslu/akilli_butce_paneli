@@ -428,7 +428,8 @@ if not st.session_state.logged_in:
                     else: 
                         st.error("❌ Kayıt Başarısız: Bu telefon numarası sistemde zaten kayıtlı!")
                 else: 
-                    st.error("❌ Hatalı doğrulama kodu girdiniz.")else:
+                    st.error("❌ Hatalı doğrulama kodu girdiniz.")
+  else:
     user = st.session_state.user_info
     status, message = check_and_update_subscription(user["id"])
     
